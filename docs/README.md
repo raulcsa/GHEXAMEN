@@ -9,3 +9,4 @@ Este directorio contiene la documentación global del monorepo.
 
 ## Políticas del CI/CD:
 - Los cambios realizados únicamente en este directorio (`documentación/`) no dispararán las pruebas de código ni de infraestructura, ahorrando recursos del runner.
+Prueba de funcionamiento actions
