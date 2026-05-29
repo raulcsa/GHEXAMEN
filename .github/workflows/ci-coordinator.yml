@@ -1,0 +1,307 @@
+name: Monorepo CI Coordinator
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+# Concurrency group configuration to cancel in-progress runs on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Global least-privilege permissions
+permissions:
+  contents: read
+
+jobs:
+  detect-changes:
+    name: Detect Repository Changes
+    runs-on: ubuntu-latest
+    # Specific permission for paths-filter (needs PR read permission)
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      infra:  ${{ steps.filter.outputs.infra }}
+      docs:   ${{ steps.filter.outputs.docs }}
+    steps:
+      # Pinned actions/checkout@v4.1.7 using full SHA for supply chain security
+      - name: Checkout Code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      # Pinned dorny/paths-filter@v3.0.2 using full SHA
+      - name: Analyze Path Changes
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad727492240ebeaae5c45e1 # v3.0.2
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+            backend:
+              - 'backend/**'
+            infra:
+              - 'infrastructure/**'
+            docs:
+              - 'docs/**'
+
+  # =========================================================================
+  # VALIDATION PHASE (Parallel execution of static analysis)
+  # =========================================================================
+
+  frontend-validate:
+    name: Frontend Linting
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/reusable-validate.yml
+    with:
+      working-directory: frontend
+      component-name: Frontend
+      language: node
+
+  backend-validate:
+    name: Backend Linting
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    uses: ./.github/workflows/reusable-validate.yml
+    with:
+      working-directory: backend
+      component-name: Backend
+      language: node
+
+  infra-validate:
+    name: Infrastructure Validation
+    needs: detect-changes
+    if: needs.detect-changes.outputs.infra == 'true'
+    uses: ./.github/workflows/reusable-validate.yml
+    with:
+      working-directory: infrastructure
+      component-name: Infrastructure
+      language: terraform
+
+  # =========================================================================
+  # MATRIX TESTING PHASE (Parallel execution of unit tests across platforms)
+  # =========================================================================
+
+  frontend-test:
+    name: Frontend Test Suite
+    needs: [detect-changes, frontend-validate]
+    if: needs.detect-changes.outputs.frontend == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-latest, macos-latest]
+        node-version: [18, 20, 22]
+        # Exclude older Node version on macOS to optimize runner execution time
+        exclude:
+          - runs-on: macos-latest
+            node-version: 18
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      working-directory: frontend
+      component-name: Frontend
+      node-version: ${{ matrix.node-version }}
+      runs-on: ${{ matrix.runs-on }}
+
+  backend-test:
+    name: Backend Test Suite
+    needs: [detect-changes, backend-validate]
+    if: needs.detect-changes.outputs.backend == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-latest, macos-latest]
+        node-version: [18, 20, 22]
+        # Exclude older Node version on macOS to optimize runner execution time
+        exclude:
+          - runs-on: macos-latest
+            node-version: 18
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      working-directory: backend
+      component-name: Backend
+      node-version: ${{ matrix.node-version }}
+      runs-on: ${{ matrix.runs-on }}
+
+  # =========================================================================
+  # COMPILATION PHASE (Parallel builds & packaging)
+  # =========================================================================
+
+  frontend-build:
+    name: Frontend Build
+    needs: frontend-test
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      working-directory: frontend
+      component-name: Frontend
+      upload-artifact: true
+
+  backend-build:
+    name: Backend Build
+    needs: backend-test
+    uses: ./.github/workflows/reusable-build.yml
+    with:
+      working-directory: backend
+      component-name: Backend
+      upload-artifact: true
+
+  # =========================================================================
+  # ENVIRONMENT DEPLOYMENTS (Hardening & OIDC Integration)
+  # =========================================================================
+
+  staging-deploy:
+    name: Deploy to Staging
+    needs: [infra-validate, frontend-build, backend-build]
+    # Execute if any build succeeded, or if infra was validated and no code failed
+    if: |
+      always() &&
+      (needs.frontend-build.result == 'success' || needs.backend-build.result == 'success' || needs.infra-validate.result == 'success') &&
+      (needs.frontend-build.result != 'failure' && needs.backend-build.result != 'failure' && needs.infra-validate.result != 'failure')
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: https://staging.globalfin.example.com
+    # Job-specific elevated permission for OIDC federation
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Authenticate via OIDC to Cloud Provider (Staging)
+        run: |
+          echo "🔐 Requesting OIDC JWT token..."
+          echo "🌐 Simulating Cloud provider authentication..."
+          echo "✅ OIDC Session established. Role assumed: arn:aws:iam::123456789012:role/GithubActionsStagingRole"
+
+      - name: Perform Deploy to Staging Environment
+        run: |
+          echo "🚀 Deploying components to Staging environment..."
+          # In real execution, deploy tools (e.g. Terraform apply, serverless, helm) would run here
+          echo "Frontend Artifact: ${{ needs.frontend-build.outputs.artifact-name }}"
+          echo "Backend Artifact: ${{ needs.backend-build.outputs.artifact-name }}"
+          echo "✨ Deployment to Staging completed successfully."
+
+  production-deploy:
+    name: Deploy to Production
+    needs: staging-deploy
+    # Restrict production deployments strictly to the main branch
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://production.globalfin.example.com
+    # Job-specific elevated permission for OIDC federation
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Authenticate via OIDC to Cloud Provider (Production)
+        run: |
+          echo "🔐 Requesting OIDC JWT token..."
+          echo "🌐 Simulating Cloud provider authentication..."
+          echo "✅ OIDC Session established. Role assumed: arn:aws:iam::123456789012:role/GithubActionsProdRole"
+
+      - name: Perform Deploy to Production Environment
+        run: |
+          echo "🚀 Deploying components to Production environment..."
+          # Deploying with environment secrets
+          echo "🔑 Deploying using Environment Secrets (masked): ${{ secrets.PROD_API_KEY != '' && 'Env secret verified' || 'Fallback / Dev mock' }}"
+          echo "✨ Deployment to Production completed successfully."
+
+  # =========================================================================
+  # REPORTING PHASE
+  # =========================================================================
+
+  reporting:
+    name: Generate Pipeline Summary
+    needs: 
+      - detect-changes
+      - frontend-validate
+      - backend-validate
+      - infra-validate
+      - frontend-test
+      - backend-test
+      - frontend-build
+      - backend-build
+      - staging-deploy
+      - production-deploy
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Generate Markdown Summary
+        run: |
+          echo "### 📊 Monorepo CI/CD Enterprise Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🔍 Change Detection Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** ${{ needs.detect-changes.outputs.frontend == 'true' && '⚠️ Changes detected' || '✅ No changes' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend:** ${{ needs.detect-changes.outputs.backend == 'true' && '⚠️ Changes detected' || '✅ No changes' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Infrastructure:** ${{ needs.detect-changes.outputs.infra == 'true' && '⚠️ Changes detected' || '✅ No changes' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Documentación:** ${{ needs.detect-changes.outputs.docs == 'true' && '📝 Changes detected' || '✅ No changes' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🚀 Executed Pipelines Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Component/Job | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
+          
+          # Status map for Frontend Linting
+          FE_VAL="${{ needs.frontend-validate.result }}"
+          echo "| **Frontend Validate** | ${FE_VAL == 'success' && '🟢 `success`' || FE_VAL == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Syntax & Lint checks |" >> $GITHUB_STEP_SUMMARY
+
+          # Status map for Frontend Test
+          FE_TEST="${{ needs.frontend-test.result }}"
+          echo "| **Frontend Tests** | ${FE_TEST == 'success' && '🟢 `success`' || FE_TEST == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Multi-runtime Unit Tests |" >> $GITHUB_STEP_SUMMARY
+
+          # Status map for Frontend Build
+          FE_BUILD="${{ needs.frontend-build.result }}"
+          echo "| **Frontend Build** | ${FE_BUILD == 'success' && '🟢 `success`' || FE_BUILD == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Package Compilation & Upload |" >> $GITHUB_STEP_SUMMARY
+
+          # Status map for Backend Linting
+          BE_VAL="${{ needs.backend-validate.result }}"
+          echo "| **Backend Validate** | ${BE_VAL == 'success' && '🟢 `success`' || BE_VAL == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Syntax & Lint checks |" >> $GITHUB_STEP_SUMMARY
+
+          # Status map for Backend Test
+          BE_TEST="${{ needs.backend-test.result }}"
+          echo "| **Backend Tests** | ${BE_TEST == 'success' && '🟢 `success`' || BE_TEST == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Multi-runtime Unit Tests |" >> $GITHUB_STEP_SUMMARY
+
+          # Status map for Backend Build
+          BE_BUILD="${{ needs.backend-build.result }}"
+          echo "| **Backend Build** | ${BE_BUILD == 'success' && '🟢 `success`' || BE_BUILD == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Package Compilation & Upload |" >> $GITHUB_STEP_SUMMARY
+
+          # Status map for Infrastructure
+          INFRA_VAL="${{ needs.infra-validate.result }}"
+          echo "| **Infrastructure** | ${INFRA_VAL == 'success' && '🟢 `success`' || INFRA_VAL == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Syntax validation |" >> $GITHUB_STEP_SUMMARY
+
+          # Status map for Staging Deploy
+          STG_DEP="${{ needs.staging-deploy.result }}"
+          echo "| **Staging Deploy** | ${STG_DEP == 'success' && '🟢 `success`' || STG_DEP == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Environment Deployment via OIDC |" >> $GITHUB_STEP_SUMMARY
+
+          # Status map for Prod Deploy
+          PROD_DEP="${{ needs.production-deploy.result }}"
+          echo "| **Production Deploy** | ${PROD_DEP == 'success' && '🟢 `success`' || PROD_DEP == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Gate-protected Deploy |" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Report generated automatically by the Enterprise CI Coordinator.*" >> $GITHUB_STEP_SUMMARY
+
+      # Upload execution summary as a secure build artifact
+      - name: Archive Pipeline Report
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        with:
+          name: pipeline-report-${{ github.run_id }}
+          path: docs/
+          retention-days: 7

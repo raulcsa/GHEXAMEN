@@ -1,0 +1,48 @@
+name: Reusable Test
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: true
+        type: string
+        description: "The directory where the component source code is located"
+      component-name:
+        required: true
+        type: string
+        description: "Display name of the component"
+      node-version:
+        required: true
+        type: string
+        description: "The Node.js version to use"
+      runs-on:
+        required: false
+        type: string
+        default: "ubuntu-latest"
+        description: "The runner OS to use"
+
+permissions:
+  contents: read
+
+jobs:
+  run-tests:
+    name: Test ${{ inputs.component-name }} | Node ${{ inputs.node-version }} | ${{ inputs.runs-on }}
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@60a2b88c02c91c7d26d416a24b04983c97a72ee5 # v4.0.2
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'npm'
+          cache-dependency-path: '${{ inputs.working-directory }}/package.json'
+
+      - name: Install Dependencies
+        run: npm install
+        working-directory: ${{ inputs.working-directory }}
+
+      - name: Run Tests
+        run: npm run test
+        working-directory: ${{ inputs.working-directory }}

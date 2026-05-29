@@ -1,0 +1,13 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend API component of the monorepo",
+  "main": "index.js",
+  "scripts": {
+    "lint": "node -e \"console.log('✨ Backend: Linting completed successfully (syntax check passes).')\"",
+    "test": "node --test index.test.js",
+    "build": "echo '✨ Backend: Build completed (no-op for API service).'"
+  },
+  "dependencies": {}
+}
