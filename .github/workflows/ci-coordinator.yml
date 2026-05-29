@@ -35,7 +35,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      # Pinned dorny/paths-filter@v3.0.2 using full SHA
+      # Paths filter check (v3 tag used per user's customization)
       - name: Analyze Path Changes
         uses: dorny/paths-filter@v3 # v3.0.2
         id: filter
@@ -246,6 +246,20 @@ jobs:
 
       - name: Generate Markdown Summary
         run: |
+          get_status_text() {
+            case "$1" in
+              success)
+                echo '🟢 `success`'
+                ;;
+              failure)
+                echo '🔴 `failure`'
+                ;;
+              *)
+                echo '⏭️ `skipped`'
+                ;;
+            esac
+          }
+
           echo "### 📊 Monorepo CI/CD Enterprise Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "#### 🔍 Change Detection Analysis" >> $GITHUB_STEP_SUMMARY
@@ -257,42 +271,15 @@ jobs:
           echo "#### 🚀 Executed Pipelines Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Component/Job | Status | Details |" >> $GITHUB_STEP_SUMMARY
           echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-          
-          # Status map for Frontend Linting
-          FE_VAL="${{ needs.frontend-validate.result }}"
-          echo "| **Frontend Validate** | ${FE_VAL == 'success' && '🟢 `success`' || FE_VAL == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Syntax & Lint checks |" >> $GITHUB_STEP_SUMMARY
-
-          # Status map for Frontend Test
-          FE_TEST="${{ needs.frontend-test.result }}"
-          echo "| **Frontend Tests** | ${FE_TEST == 'success' && '🟢 `success`' || FE_TEST == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Multi-runtime Unit Tests |" >> $GITHUB_STEP_SUMMARY
-
-          # Status map for Frontend Build
-          FE_BUILD="${{ needs.frontend-build.result }}"
-          echo "| **Frontend Build** | ${FE_BUILD == 'success' && '🟢 `success`' || FE_BUILD == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Package Compilation & Upload |" >> $GITHUB_STEP_SUMMARY
-
-          # Status map for Backend Linting
-          BE_VAL="${{ needs.backend-validate.result }}"
-          echo "| **Backend Validate** | ${BE_VAL == 'success' && '🟢 `success`' || BE_VAL == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Syntax & Lint checks |" >> $GITHUB_STEP_SUMMARY
-
-          # Status map for Backend Test
-          BE_TEST="${{ needs.backend-test.result }}"
-          echo "| **Backend Tests** | ${BE_TEST == 'success' && '🟢 `success`' || BE_TEST == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Multi-runtime Unit Tests |" >> $GITHUB_STEP_SUMMARY
-
-          # Status map for Backend Build
-          BE_BUILD="${{ needs.backend-build.result }}"
-          echo "| **Backend Build** | ${BE_BUILD == 'success' && '🟢 `success`' || BE_BUILD == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Package Compilation & Upload |" >> $GITHUB_STEP_SUMMARY
-
-          # Status map for Infrastructure
-          INFRA_VAL="${{ needs.infra-validate.result }}"
-          echo "| **Infrastructure** | ${INFRA_VAL == 'success' && '🟢 `success`' || INFRA_VAL == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Syntax validation |" >> $GITHUB_STEP_SUMMARY
-
-          # Status map for Staging Deploy
-          STG_DEP="${{ needs.staging-deploy.result }}"
-          echo "| **Staging Deploy** | ${STG_DEP == 'success' && '🟢 `success`' || STG_DEP == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Environment Deployment via OIDC |" >> $GITHUB_STEP_SUMMARY
-
-          # Status map for Prod Deploy
-          PROD_DEP="${{ needs.production-deploy.result }}"
-          echo "| **Production Deploy** | ${PROD_DEP == 'success' && '🟢 `success`' || PROD_DEP == 'failure' && '🔴 `failure`' || '⏭️ `skipped`'} | Gate-protected Deploy |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Validate | $(get_status_text "${{ needs.frontend-validate.result }}") | Validation of frontend code |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Validate | $(get_status_text "${{ needs.backend-validate.result }}") | Validation of backend code |" >> $GITHUB_STEP_SUMMARY
+          echo "| Infra Validate | $(get_status_text "${{ needs.infra-validate.result }}") | Validation of infra code |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Test | $(get_status_text "${{ needs.frontend-test.result }}") | Frontend unit tests |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Test | $(get_status_text "${{ needs.backend-test.result }}") | Backend unit tests |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Build | $(get_status_text "${{ needs.frontend-build.result }}") | Build frontend artifacts |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Build | $(get_status_text "${{ needs.backend-build.result }}") | Build backend artifacts |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy to Staging | $(get_status_text "${{ needs.staging-deploy.result }}") | Staging environment deployment |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy to Prod | $(get_status_text "${{ needs.production-deploy.result }}") | Production environment deployment |" >> $GITHUB_STEP_SUMMARY
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
