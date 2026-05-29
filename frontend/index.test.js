@@ -4,5 +4,5 @@ const { greet } = require('./index');
 
 test('frontend greet function', (t) => {
   const result = greet('User');
-  assert.strictEqual(result, 'Hello, User! Welcome to our Monorepo App V2.');
+  assert.strictEqual(result, 'Hello, User! Welcome to our Monorepo App V23.');
 });
