@@ -11,6 +11,6 @@ terraform {
 
 resource "null_resource" "monorepo_env" {
   provisioner "local-exec" {
-    command = "echo 'Deploying monorepo infrastructure...'"
+    command = "echo 'Deploying monorepo infrastructure v2...'"
   }
 }
