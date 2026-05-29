@@ -37,7 +37,7 @@ jobs:
 
       # Pinned dorny/paths-filter@v3.0.2 using full SHA
       - name: Analyze Path Changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad727492240ebeaae5c45e1 # v3.0.2
+        uses: dorny/paths-filter@v3 # v3.0.2
         id: filter
         with:
           filters: |
