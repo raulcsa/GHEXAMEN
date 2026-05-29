@@ -32,10 +32,10 @@ jobs:
       artifact-name: ${{ steps.set-output.outputs.artifact-name }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@60a2b88c02c91c7d26d416a24b04983c97a72ee5 # v4.0.2
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
@@ -61,7 +61,7 @@ jobs:
 
       - name: Upload Build Artifacts
         if: inputs.upload-artifact == true
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifact-${{ inputs.component-name }}-${{ github.run_id }}
           path: ${{ steps.check-dir.outputs.dir }}

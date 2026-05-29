@@ -25,11 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@v4
 
       - name: Setup Node.js (Node Component)
         if: inputs.language == 'node'
-        uses: actions/setup-node@60a2b88c02c91c7d26d416a24b04983c97a72ee5 # v4.0.2
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'

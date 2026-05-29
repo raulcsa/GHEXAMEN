@@ -33,7 +33,7 @@ jobs:
     steps:
       # Pinned actions/checkout@v4.1.7 using full SHA for supply chain security
       - name: Checkout Code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@v4
 
       # Paths filter check (v3 tag used per user's customization)
       - name: Analyze Path Changes
@@ -172,7 +172,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@v4
 
       - name: Authenticate via OIDC to Cloud Provider (Staging)
         run: |
@@ -203,7 +203,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@v4
 
       - name: Authenticate via OIDC to Cloud Provider (Production)
         run: |
@@ -242,7 +242,7 @@ jobs:
       actions: read
     steps:
       - name: Checkout Code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@v4
 
       - name: Generate Markdown Summary
         run: |
@@ -287,7 +287,7 @@ jobs:
 
       # Upload execution summary as a secure build artifact
       - name: Archive Pipeline Report
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        uses: actions/upload-artifact@v4
         with:
           name: pipeline-report-${{ github.run_id }}
           path: docs/
