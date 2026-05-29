@@ -32,5 +32,4 @@ function validateSchema() {
   console.log('✅ Backend schema validation passed');
 }
 
-
 module.exports = { getStatus, validateSchema };
